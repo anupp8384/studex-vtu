@@ -13,11 +13,35 @@ import { DashboardPage } from "./pages/dashboard-page";
 import { Layout } from "./components/layout";
 import { AdminRouteGuard, ApprovedRouteGuard, SignedInRouteGuard } from "./components/auth-route-guards";
 
-function ApprovedLayout() {
+function ApprovedPage({ children }: { children: React.ReactNode }) {
   return (
     <ApprovedRouteGuard>
-      <Layout />
+      {children}
     </ApprovedRouteGuard>
+  );
+}
+
+function GuardedBrowsePage() {
+  return (
+    <ApprovedPage>
+      <BrowsePage />
+    </ApprovedPage>
+  );
+}
+
+function GuardedUploadPage() {
+  return (
+    <ApprovedPage>
+      <UploadPage />
+    </ApprovedPage>
+  );
+}
+
+function GuardedSearchPage() {
+  return (
+    <ApprovedPage>
+      <SearchPage />
+    </ApprovedPage>
   );
 }
 
@@ -48,12 +72,12 @@ export const router = createBrowserRouter([
 
   {
     path: "/",
-    Component: ApprovedLayout,
+    Component: Layout,
     children: [
       { index: true, Component: HomePage },
-      { path: "browse", Component: BrowsePage },
-      { path: "upload", Component: UploadPage },
-      { path: "search", Component: SearchPage },
+      { path: "browse", Component: GuardedBrowsePage },
+      { path: "upload", Component: GuardedUploadPage },
+      { path: "search", Component: GuardedSearchPage },
       { path: "dashboard", Component: GuardedDashboardPage },
       { path: "*", Component: NotFoundPage },
     ],

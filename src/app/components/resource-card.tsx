@@ -36,6 +36,19 @@ export function ResourceCard({ resource, downloads, onDownload }: ResourceCardPr
   const { avg, count, userRating } = getRatingInfo(resource.id, resource.rating);
 
   const handleDownload = () => {
+    if (!user) {
+      navigate("/login");
+      return;
+    }
+    if (accountStatus !== "approved") {
+      const destination = accountStatus === "none"
+        ? "/register"
+        : accountStatus === "pending"
+          ? "/pending"
+          : "/rejected";
+      navigate(destination);
+      return;
+    }
     onDownload();
     toast.success(`Downloading "${resource.title}"`);
   };

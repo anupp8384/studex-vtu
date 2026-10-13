@@ -45,6 +45,14 @@ export function HomePage() {
               >
                 <Link to="/upload">Upload Resource</Link>
               </Button>
+              <Button
+                asChild
+                size="lg"
+                variant="outline"
+                className="border-white bg-transparent text-white hover:bg-white/10 hover:text-white"
+              >
+                <Link to="/login">Login</Link>
+              </Button>
             </div>
           </div>
         </div>
