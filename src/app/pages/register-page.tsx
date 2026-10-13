@@ -1,29 +1,43 @@
-import { useEffect } from "react";
-import { useNavigate, Navigate } from "react-router";
-import { RegistrationForm } from "../auth/RegistrationForm";
+import { Navigate } from "react-router";
+import { RegistrationForm, type RegistrationData } from "../auth/RegistrationForm";
+import { RouteAccessLoading } from "../components/auth-route-guards";
 import { useAuth } from "../context/auth-context";
 
 export function RegisterPage() {
-  const { user, accountStatus, submitRegistration, isLoading, registrationError } = useAuth();
-  const navigate = useNavigate();
+  const {
+    user,
+    accountStatus,
+    isInitialising,
+    isProfileLoading,
+    submitRegistration,
+    registrationError,
+    registrationResult,
+    isRegistrationSubmitting,
+  } = useAuth();
 
-  // Redirect users who shouldn't be here
-  useEffect(() => {
-    if (!user)                        { navigate("/login",    { replace: true }); return; }
-    if (accountStatus === "pending")  { navigate("/pending",  { replace: true }); return; }
-    if (accountStatus === "rejected") { navigate("/rejected", { replace: true }); return; }
-    if (accountStatus === "approved") { navigate("/",         { replace: true }); return; }
-  }, [user, accountStatus, navigate]);
-
+  if (isInitialising || isProfileLoading) return <RouteAccessLoading />;
   if (!user) return <Navigate to="/login" replace />;
+  if (accountStatus === "pending") return <Navigate to="/pending" replace />;
+  if (accountStatus === "rejected") return <Navigate to="/rejected" replace />;
+  if (accountStatus === "approved") return <Navigate to="/" replace />;
+
+  function handleRegistrationSubmit(data: RegistrationData) {
+    return submitRegistration({
+      fullName: data.fullName,
+      usn: data.usn.trim().toUpperCase(),
+      department: data.department,
+      academicYear: data.academicYear,
+    });
+  }
 
   return (
     <RegistrationForm
       initialName={user.name}
       email={user.email}
-      onSubmit={submitRegistration}
-      isSubmitting={isLoading}
+      onSubmit={handleRegistrationSubmit}
+      isSubmitting={isRegistrationSubmitting}
       errorMessage={registrationError}
+      verificationResult={registrationResult}
     />
   );
 }

@@ -1,20 +1,30 @@
 import {
-  createContext, useContext, useState, useEffect, type ReactNode,
+  createContext,
+  useCallback,
+  useContext,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
 } from "react";
 import type { Session } from "@supabase/supabase-js";
 import { supabase } from "../../lib/supabase";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
 export type AuthUser = {
   name: string;
   email: string;
 };
 
-export type AccountStatus =
-  | "none"       // signed in but no registration row yet (usn_status = 'not_submitted')
-  | "pending"    // registration submitted, awaiting admin approval
-  | "approved"   // fully approved
-  | "rejected";  // admin rejected the account
+export type AuthProfile = {
+  full_name: string | null;
+  email: string | null;
+  email_status: string | null;
+  role: string | null;
+  usn_status: string | null;
+  account_status: string | null;
+};
+
+export type AccountStatus = "none" | "pending" | "approved" | "rejected";
 
 export type RegistrationPayload = {
   fullName: string;
@@ -23,169 +33,258 @@ export type RegistrationPayload = {
   academicYear: string;
 };
 
-type AuthContextValue = {
+export type RegistrationResult =
+  | "verified"
+  | "mismatch"
+  | "not_found"
+  | "already_claimed"
+  | "manual_review";
+
+function isRegistrationResult(value: unknown): value is RegistrationResult {
+  return value === "verified"
+    || value === "mismatch"
+    || value === "not_found"
+    || value === "already_claimed"
+    || value === "manual_review";
+}
+
+type AuthState = {
   user: AuthUser | null;
+  profile: AuthProfile | null;
   accountStatus: AccountStatus;
-  /** True while session is being resolved on initial load */
+  role: string | null;
   isInitialising: boolean;
-  /** True while a sign-in request is in flight */
+  isProfileLoading: boolean;
   isLoading: boolean;
   loginError: string | undefined;
   registrationError: string | undefined;
-  rejectionReason: string | undefined;
-  isRequestingReview: boolean;
+  registrationResult: RegistrationResult | undefined;
+  isRegistrationSubmitting: boolean;
   signInWithGoogle: () => Promise<void>;
-  /** TODO: wire this when the profiles table becomes writable by users */
-  submitRegistration: (data: RegistrationPayload) => Promise<void>;
+  submitRegistration: (registration: RegistrationPayload) => Promise<void>;
   logout: () => Promise<void>;
-  requestReview: () => Promise<void>;
 };
 
-// ── Context ───────────────────────────────────────────────────────────────────
-const AuthContext = createContext<AuthContextValue | null>(null);
-
-export function useAuth(): AuthContextValue {
-  const ctx = useContext(AuthContext);
-  if (!ctx) throw new Error("useAuth must be used inside <AuthProvider>");
-  return ctx;
-}
-
-// ── Profile row shape (read-only for the browser) ─────────────────────────────
-type ProfileRow = {
-  account_status: string | null;
-  usn_status: string | null;
-  role: string | null;
-  full_name: string | null;
-  email: string | null;
-  rejection_reason: string | null;
-};
-
-function statusFromProfile(profile: ProfileRow | null): AccountStatus {
-  if (!profile) return "none";
-  if (profile.usn_status === "not_submitted") return "none";
-  if (profile.account_status === "approved") return "approved";
+function accountStatusFromProfile(profile: AuthProfile | null): AccountStatus {
+  if (!profile || profile.usn_status === "not_submitted") return "none";
+  if (profile.account_status === "pending") return "pending";
   if (profile.account_status === "rejected") return "rejected";
-  return "pending"; // 'pending' or anything else defaults to pending
+  if (profile.account_status === "approved") return "approved";
+  return "none";
 }
 
-// ── Provider ──────────────────────────────────────────────────────────────────
+const AuthContext = createContext<AuthState | null>(null);
+
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(null);
+  const [profile, setProfile] = useState<AuthProfile | null>(null);
   const [accountStatus, setAccountStatus] = useState<AccountStatus>("none");
-  const [rejectionReason, setRejectionReason] = useState<string | undefined>();
+  const [role, setRole] = useState<string | null>(null);
   const [isInitialising, setIsInitialising] = useState(true);
+  const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
-  const [loginError, setLoginError] = useState<string | undefined>();
-  const [registrationError, setRegistrationError] = useState<string | undefined>();
-  const [isRequestingReview, setIsRequestingReview] = useState(false);
+  const [loginError, setLoginError] = useState<string>();
+  const [registrationError, setRegistrationError] = useState<string>();
+  const [registrationResult, setRegistrationResult] = useState<RegistrationResult>();
+  const [isRegistrationSubmitting, setIsRegistrationSubmitting] = useState(false);
+  const sessionReadId = useRef(0);
 
-  // ── Resolve profile from Supabase ─────────────────────────────────────────
-  async function resolveSession(session: Session | null) {
+  const resolveSession = useCallback(async (session: Session | null) => {
+    const readId = ++sessionReadId.current;
+    setLoginError(undefined);
+
     if (!session) {
       setUser(null);
+      setProfile(null);
       setAccountStatus("none");
-      setRejectionReason(undefined);
+      setRole(null);
+      setIsProfileLoading(false);
       return;
     }
 
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("account_status, usn_status, role, full_name, email, rejection_reason")
-      .eq("id", session.user.id)
-      .single();
+    setIsProfileLoading(true);
+    const fallbackUser: AuthUser = {
+      name: session.user.user_metadata?.full_name ?? session.user.email ?? "User",
+      email: session.user.email ?? "",
+    };
 
-    if (error && error.code !== "PGRST116") {
-      // PGRST116 = no rows found — treat as not_submitted
-      console.error("[auth] profiles fetch error:", error.message);
+    try {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("full_name, email, email_status, role, usn_status, account_status")
+        .eq("id", session.user.id)
+        .maybeSingle();
+
+      if (readId !== sessionReadId.current) return;
+      if (error) {
+        console.error("[auth] Could not load profile:", error.message);
+        setUser(null);
+        setProfile(null);
+        setAccountStatus("none");
+        setRole(null);
+        setLoginError(`Could not load your account profile: ${error.message}`);
+        setIsProfileLoading(false);
+        return;
+      }
+
+      const profileRow = data as AuthProfile | null;
+      setProfile(profileRow);
+      setUser({
+        name: profileRow?.full_name ?? fallbackUser.name,
+        email: profileRow?.email ?? fallbackUser.email,
+      });
+      setAccountStatus(accountStatusFromProfile(profileRow));
+      setRole(profileRow?.role ?? null);
+      setIsProfileLoading(false);
+    } catch (error) {
+      if (readId !== sessionReadId.current) return;
+      const message = error instanceof Error ? error.message : "Unexpected profile request error.";
+      console.error("[auth] Could not load profile:", message);
+      setUser(null);
+      setProfile(null);
+      setAccountStatus("none");
+      setRole(null);
+      setLoginError(`Could not load your account profile: ${message}`);
+      setIsProfileLoading(false);
     }
+  }, []);
 
-    const profile = (data as ProfileRow | null) ?? null;
-    const status = statusFromProfile(profile);
-
-    setUser({
-      name:  profile?.full_name  ?? session.user.user_metadata?.full_name ?? session.user.email ?? "User",
-      email: profile?.email      ?? session.user.email ?? "",
-    });
-    setAccountStatus(status);
-    setRejectionReason(profile?.rejection_reason ?? undefined);
-  }
-
-  // ── Bootstrap: read existing session then subscribe to changes ────────────
   useEffect(() => {
     let mounted = true;
-
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (mounted) resolveSession(session).finally(() => setIsInitialising(false));
-    });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      if (mounted) resolveSession(session);
+      if (!mounted) return;
+      void resolveSession(session).finally(() => {
+        if (mounted) setIsInitialising(false);
+      });
     });
+
+    void supabase.auth.getSession()
+      .then(({ data: { session }, error }) => {
+        if (!mounted) return;
+        if (error) {
+          console.error("[auth] Could not read session:", error.message);
+          setLoginError(`Could not restore your session: ${error.message}`);
+          setUser(null);
+          setProfile(null);
+          setAccountStatus("none");
+          setRole(null);
+          setIsInitialising(false);
+          return;
+        }
+        return resolveSession(session).finally(() => {
+          if (mounted) setIsInitialising(false);
+        });
+      })
+      .catch((error: unknown) => {
+        if (!mounted) return;
+        const message = error instanceof Error ? error.message : "Unexpected session request error.";
+        console.error("[auth] Could not read session:", message);
+        setLoginError(`Could not restore your session: ${message}`);
+        setIsInitialising(false);
+      });
 
     return () => {
       mounted = false;
       subscription.unsubscribe();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [resolveSession]);
 
-  // ── signInWithGoogle ──────────────────────────────────────────────────────
-  async function signInWithGoogle(): Promise<void> {
+  const signInWithGoogle = useCallback(async () => {
     setIsLoading(true);
     setLoginError(undefined);
-    const { error } = await supabase.auth.signInWithOAuth({
-      provider: "google",
-      options: { redirectTo: window.location.origin },
-    });
-    // If there is an error (e.g. provider not enabled) show it inline.
-    // On success the browser navigates away; isLoading stays true until redirect.
-    if (error) {
-      setLoginError(error.message);
+    try {
+      const { error } = await supabase.auth.signInWithOAuth({
+        provider: "google",
+        options: { redirectTo: window.location.origin },
+      });
+      if (error) setLoginError(error.message);
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : "Google sign-in could not be started.");
+    } finally {
       setIsLoading(false);
     }
-  }
+  }, []);
 
-  // ── submitRegistration ────────────────────────────────────────────────────
-  // TODO: wire when the profiles table has a write policy for users, e.g.:
-  //   await supabase.from("profiles").upsert({
-  //     id: session.user.id,
-  //     full_name: data.fullName,
-  //     usn: data.usn,
-  //     department: data.department,
-  //     academic_year: data.academicYear,
-  //     usn_status: "submitted",
-  //     account_status: "pending",
-  //   });
-  async function submitRegistration(data: RegistrationPayload): Promise<void> {
-    void data; // suppress unused warning
-    setRegistrationError("Registration submission is not yet wired to the database.");
-  }
+  const submitRegistration = useCallback(async (registration: RegistrationPayload) => {
+    setIsRegistrationSubmitting(true);
+    setRegistrationError(undefined);
+    setRegistrationResult(undefined);
 
-  // ── logout ────────────────────────────────────────────────────────────────
-  async function logout(): Promise<void> {
-    await supabase.auth.signOut();
-    // onAuthStateChange fires with null session and calls resolveSession(null)
-  }
-
-  // ── requestReview ─────────────────────────────────────────────────────────
-  // TODO: insert a row into a review_requests table when that table exists
-  async function requestReview(): Promise<void> {
-    setIsRequestingReview(true);
     try {
-      setIsRequestingReview(false);
+      const { data, error } = await supabase.rpc("submit_usn", {
+        p_usn: registration.usn.trim().toUpperCase(),
+        p_name: registration.fullName.trim(),
+        p_dept: registration.department,
+        p_year: Number(registration.academicYear),
+      });
+
+      if (error) {
+        setRegistrationError(error.message);
+        return;
+      }
+
+      if (!isRegistrationResult(data)) {
+        setRegistrationError("The registration service returned an unexpected result. Please try again.");
+        return;
+      }
+
+      setRegistrationResult(data);
+      if (data === "verified" || data === "manual_review") {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        if (sessionError) {
+          setRegistrationError(`Could not refresh your account: ${sessionError.message}`);
+          return;
+        }
+        await resolveSession(sessionData.session);
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "Unexpected registration error.";
+      setRegistrationError(message);
     } finally {
-      setIsRequestingReview(false);
+      setIsRegistrationSubmitting(false);
     }
-  }
+  }, [resolveSession]);
+
+  const logout = useCallback(async () => {
+    const { error } = await supabase.auth.signOut();
+    if (error) {
+      console.error("[auth] Could not sign out:", error.message);
+      setLoginError(error.message);
+      return;
+    }
+    setUser(null);
+    setProfile(null);
+    setAccountStatus("none");
+    setRole(null);
+    setLoginError(undefined);
+    setRegistrationError(undefined);
+    setRegistrationResult(undefined);
+  }, []);
 
   return (
     <AuthContext.Provider value={{
-      user, accountStatus, isInitialising, isLoading,
-      loginError, registrationError, rejectionReason,
-      isRequestingReview,
-      signInWithGoogle, submitRegistration, logout, requestReview,
+      user,
+      profile,
+      accountStatus,
+      role,
+      isInitialising,
+      isProfileLoading,
+      isLoading,
+      loginError,
+      registrationError,
+      registrationResult,
+      isRegistrationSubmitting,
+      signInWithGoogle,
+      submitRegistration,
+      logout,
     }}>
       {children}
     </AuthContext.Provider>
   );
+}
+
+export function useAuth(): AuthState {
+  const context = useContext(AuthContext);
+  if (!context) throw new Error("useAuth must be used inside <AuthProvider>");
+  return context;
 }

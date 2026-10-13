@@ -1,6 +1,7 @@
 import type { ReactNode } from "react";
 import logoImage from "../../imports/WhatsApp_Image_2026-05-28_at_5.04.56_PM.jpeg";
-import { authColors, authCopy, authRadius, authShadow } from "./auth-theme";
+import studentImage from "../../imports/multiethnic-group-young-happy-students-standing-outdoors.jpg";
+import { authColors, authCopy, authFonts, authRadius, authShadow, authSpacing } from "./auth-theme";
 
 // ── Google "G" SVG (official brand colours, no external dependency) ──────────
 function GoogleLogo({ size = 20 }: { size?: number }) {
@@ -14,59 +15,8 @@ function GoogleLogo({ size = 20 }: { size?: number }) {
   );
 }
 
-// ── Decorative illustration panel ────────────────────────────────────────────
-function IllustrationPanel({ slot }: { slot?: ReactNode }) {
-  if (slot) return <>{slot}</>;
-  return (
-    <div
-      className="relative flex flex-col items-center justify-center h-full min-h-[320px] overflow-hidden select-none"
-      style={{ background: `linear-gradient(135deg, ${authColors.accent} 0%, #c8eaf5 60%, ${authColors.accentMuted} 100%)` }}
-    >
-      {/* Floating resource cards (CSS art) */}
-      <div className="absolute top-10 left-8 w-28 h-16 rounded-xl bg-white/70 shadow-md flex items-center gap-2 px-3" style={{ transform: 'rotate(-6deg)' }}>
-        <div className="w-7 h-7 rounded-md flex-shrink-0" style={{ background: '#bfdbfe' }} />
-        <div className="flex flex-col gap-1 flex-1">
-          <div className="h-2 rounded bg-slate-200 w-full" />
-          <div className="h-2 rounded bg-slate-200 w-3/4" />
-        </div>
-      </div>
-      <div className="absolute top-24 right-6 w-24 h-14 rounded-xl bg-white/70 shadow-md flex items-center gap-2 px-3" style={{ transform: 'rotate(5deg)' }}>
-        <div className="w-6 h-6 rounded-md flex-shrink-0" style={{ background: '#d9f99d' }} />
-        <div className="flex flex-col gap-1 flex-1">
-          <div className="h-2 rounded bg-slate-200 w-full" />
-          <div className="h-2 rounded bg-slate-200 w-2/3" />
-        </div>
-      </div>
-      <div className="absolute bottom-16 left-6 w-32 h-14 rounded-xl bg-white/70 shadow-md flex items-center gap-2 px-3" style={{ transform: 'rotate(3deg)' }}>
-        <div className="w-6 h-6 rounded-md flex-shrink-0" style={{ background: '#fde68a' }} />
-        <div className="flex flex-col gap-1 flex-1">
-          <div className="h-2 rounded bg-slate-200 w-full" />
-          <div className="h-2 rounded bg-slate-200 w-1/2" />
-        </div>
-      </div>
-      <div className="absolute bottom-8 right-8 w-20 h-12 rounded-xl bg-white/70 shadow-md flex items-center gap-2 px-3" style={{ transform: 'rotate(-4deg)' }}>
-        <div className="w-5 h-5 rounded-md flex-shrink-0" style={{ background: '#f9a8d4' }} />
-        <div className="flex flex-col gap-1 flex-1">
-          <div className="h-2 rounded bg-slate-200 w-full" />
-          <div className="h-2 rounded bg-slate-200 w-3/4" />
-        </div>
-      </div>
-
-      {/* Centre text */}
-      <div className="relative z-10 text-center px-8">
-        <p className="text-2xl font-bold text-slate-700 leading-snug mb-2" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
-          {authCopy.tagline}
-        </p>
-        <p className="text-sm text-slate-500" style={{ fontFamily: "'Inter', sans-serif" }}>
-          Notes · Question Papers · PPTs
-        </p>
-      </div>
-    </div>
-  );
-}
-
 // ── Spinner ───────────────────────────────────────────────────────────────────
-function ButtonSpinner() {
+function LoginButtonSpinner() {
   return (
     <svg className="animate-spin h-4 w-4 text-slate-500" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" />
@@ -80,55 +30,71 @@ export type LoginScreenProps = {
   onGoogleSignIn: () => void;
   isLoading: boolean;
   errorMessage?: string;
-  /** Optional: pass your own illustration/image node to replace the default panel */
+  /** Replace the default student photo without changing the login layout. */
   illustrationSlot?: ReactNode;
+  /** Optional replacement photo source for the illustration panel. */
+  illustrationSrc?: string;
 };
 
 // ── Component ─────────────────────────────────────────────────────────────────
-export function LoginScreen({ onGoogleSignIn, isLoading, errorMessage, illustrationSlot }: LoginScreenProps) {
+export function LoginScreen({
+  onGoogleSignIn,
+  isLoading,
+  errorMessage,
+  illustrationSlot,
+  illustrationSrc = studentImage,
+}: LoginScreenProps) {
   return (
     <div
       className="min-h-screen flex flex-col md:flex-row"
-      style={{ background: authColors.background, fontFamily: "'Inter', sans-serif" }}
+      style={{ background: authColors.background, fontFamily: authFonts.body }}
     >
       {/* ── Left: form panel ── */}
-      <div className="flex-1 flex items-center justify-center px-6 py-12 md:px-12 md:py-0">
+      <div
+        className="flex-1 flex items-center justify-center"
+        style={{ padding: `${authSpacing.pageY} ${authSpacing.pageX}` }}
+      >
         <div className="w-full max-w-sm">
           {/* Logo */}
-          <div className="flex items-center gap-3 mb-8">
+          <div className="flex items-center mb-8" style={{ gap: authSpacing.headerGap }}>
             <img src={logoImage} alt="Studex logo" className="h-10 w-auto object-contain" />
             <span className="text-2xl font-bold text-slate-800" style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}>
               {authCopy.appName}
             </span>
           </div>
+          <p className="mb-8 -mt-6 text-sm" style={{ color: authColors.textMuted }}>
+            {authCopy.tagline}
+          </p>
 
           <h1
             className="text-3xl font-bold mb-2 text-slate-800"
-            style={{ fontFamily: "'Plus Jakarta Sans', sans-serif" }}
+            style={{ fontFamily: authFonts.heading }}
           >
-            Welcome back
+            {authCopy.loginHeading}
           </h1>
-          <p className="text-base mb-8" style={{ color: authColors.textMuted }}>
-            Sign in to access your college resources.
+          <p className="text-base mb-8 leading-relaxed" style={{ color: authColors.textMuted }}>
+            {authCopy.loginDescription}
           </p>
 
           {/* Google button */}
           <button
+            type="button"
             onClick={onGoogleSignIn}
             disabled={isLoading}
             aria-busy={isLoading}
-            className="w-full flex items-center justify-center gap-3 py-3 px-5 font-medium text-slate-700 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+            className="w-full flex items-center justify-center gap-3 px-5 font-medium transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-offset-2 focus-visible:ring-[#5B9BB8] disabled:cursor-not-allowed disabled:opacity-60"
             style={{
               background: '#FFFFFF',
               border: `1.5px solid ${authColors.border}`,
               borderRadius: authRadius.md,
               boxShadow: authShadow.input,
               fontSize: '0.9375rem',
-              focusRingColor: authColors.accent,
+              color: authColors.googleText,
+              minHeight: authSpacing.buttonMinHeight,
             }}
           >
-            {isLoading ? <ButtonSpinner /> : <GoogleLogo size={20} />}
-            <span>{isLoading ? 'Signing in…' : authCopy.googleButtonLabel}</span>
+            {isLoading ? <LoginButtonSpinner /> : <GoogleLogo size={20} />}
+            <span>{isLoading ? authCopy.googleButtonLoading : authCopy.googleButtonLabel}</span>
           </button>
 
           {/* Inline error */}
@@ -157,9 +123,37 @@ export function LoginScreen({ onGoogleSignIn, isLoading, errorMessage, illustrat
         </div>
       </div>
 
-      {/* ── Right: illustration panel (hidden on small screens) ── */}
-      <div className="hidden md:block md:w-[46%] lg:w-[52%]">
-        <IllustrationPanel slot={illustrationSlot} />
+      {/* ── Student illustration panel ── */}
+      <div className="block h-52 px-4 pb-4 md:h-auto md:w-[46%] md:p-5 lg:w-[52%] lg:p-8">
+        <StudentIllustrationPanel slot={illustrationSlot} imageSource={illustrationSrc} />
+      </div>
+    </div>
+  );
+}
+
+function StudentIllustrationPanel({ slot, imageSource }: { slot?: ReactNode; imageSource: string }) {
+  return (
+    <div
+      className="relative h-full min-h-48 overflow-hidden flex items-end rounded-3xl md:min-h-[32rem]"
+      style={{ background: authColors.accent, boxShadow: authShadow.card }}
+    >
+      {slot || (
+        <img
+          src={imageSource}
+          alt={authCopy.registrationIllustrationAlt}
+          className="absolute inset-0 h-full w-full object-cover"
+        />
+      )}
+      <div className="absolute inset-0 bg-gradient-to-t from-slate-900/70 via-slate-900/10 to-transparent" />
+      <div className="relative z-10 max-w-lg p-8 lg:p-12">
+        <p className="text-3xl font-bold leading-tight text-white" style={{ fontFamily: authFonts.heading }}>
+          {authCopy.tagline}
+        </p>
+        <p className="mt-3 text-sm text-white/90">
+          {authCopy.resourceTypes.notes} <span aria-hidden="true">·</span>{" "}
+          {authCopy.resourceTypes.papers} <span aria-hidden="true">·</span>{" "}
+          {authCopy.resourceTypes.presentations}
+        </p>
       </div>
     </div>
   );

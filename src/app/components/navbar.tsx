@@ -18,7 +18,12 @@ function getInitials(name: string): string {
 }
 
 // ── Avatar dropdown menu ──────────────────────────────────────────────────────
-function AvatarMenu({ name, email, onLogout }: { name: string; email: string; onLogout: () => void }) {
+function AvatarMenu({ name, email, role, onLogout }: {
+  name: string;
+  email: string;
+  role: string | null;
+  onLogout: () => void;
+}) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -59,6 +64,24 @@ function AvatarMenu({ name, email, onLogout }: { name: string; email: string; on
             <p className="text-sm font-semibold text-slate-800 truncate">{name}</p>
             <p className="text-xs text-slate-400 truncate mt-0.5">{email}</p>
           </div>
+          <Link
+            role="menuitem"
+            to="/dashboard"
+            onClick={() => setOpen(false)}
+            className="block px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+          >
+            My dashboard
+          </Link>
+          {role === "admin" && (
+            <Link
+              role="menuitem"
+              to="/admin"
+              onClick={() => setOpen(false)}
+              className="block px-4 py-2.5 text-sm text-slate-600 hover:bg-slate-50 transition-colors"
+            >
+              Admin
+            </Link>
+          )}
           <button
             role="menuitem"
             onClick={() => { setOpen(false); onLogout(); }}
@@ -80,7 +103,7 @@ export function Navbar() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
   const { totalPoints } = usePoints();
-  const { user, logout } = useAuth();
+  const { user, role, logout } = useAuth();
 
   const isActive = (path: string) => {
     if (path === "/" && location.pathname === "/") return true;
@@ -158,7 +181,12 @@ export function Navbar() {
 
             {/* Log in / Avatar */}
             {user ? (
-              <AvatarMenu name={user.name} email={user.email} onLogout={logout} />
+              <AvatarMenu
+                name={user.name}
+                email={user.email}
+                role={role}
+                onLogout={logout}
+              />
             ) : (
               <Button asChild variant="outline" className="border-slate-300 text-slate-700 hover:bg-slate-50">
                 <Link to="/login">Log in</Link>
@@ -227,25 +255,45 @@ export function Navbar() {
               {/* Log in / user row on mobile */}
               <div className="px-4 border-t pt-3">
                 {user ? (
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2">
-                      <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-800"
-                        style={{ background: "#FFBF00" }}>
-                        {getInitials(user.name)}
-                      </span>
-                      <div>
-                        <p className="text-sm font-medium text-slate-800">{user.name}</p>
-                        <p className="text-xs text-slate-400">{user.email}</p>
+                  <>
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 rounded-full flex items-center justify-center text-sm font-bold text-slate-800"
+                          style={{ background: "#FFBF00" }}>
+                          {getInitials(user.name)}
+                        </span>
+                        <div>
+                          <p className="text-sm font-medium text-slate-800">{user.name}</p>
+                          <p className="text-xs text-slate-400">{user.email}</p>
+                        </div>
                       </div>
+                      <button
+                        onClick={() => { setMobileMenuOpen(false); logout(); }}
+                        className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700"
+                      >
+                        <LogOut className="h-4 w-4" />
+                        Log out
+                      </button>
                     </div>
-                    <button
-                      onClick={() => { setMobileMenuOpen(false); logout(); }}
-                      className="flex items-center gap-1.5 text-sm text-slate-500 hover:text-slate-700"
-                    >
-                      <LogOut className="h-4 w-4" />
-                      Log out
-                    </button>
-                  </div>
+                    <div className="mt-3 flex flex-col border-t pt-2">
+                      <Link
+                        to="/dashboard"
+                        onClick={() => setMobileMenuOpen(false)}
+                        className="py-2 text-sm text-slate-600 hover:text-primary"
+                      >
+                        My dashboard
+                      </Link>
+                      {role === "admin" && (
+                        <Link
+                          to="/admin"
+                          onClick={() => setMobileMenuOpen(false)}
+                          className="py-2 text-sm text-slate-600 hover:text-primary"
+                        >
+                          Admin
+                        </Link>
+                      )}
+                    </div>
+                  </>
                 ) : (
                   <Button asChild variant="outline" className="w-full border-slate-300">
                     <Link to="/login" onClick={() => setMobileMenuOpen(false)}>Log in</Link>

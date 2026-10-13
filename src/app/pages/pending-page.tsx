@@ -1,24 +1,24 @@
-import { useEffect } from "react";
-import { useNavigate, Navigate } from "react-router";
+import { Navigate } from "react-router";
 import { PendingApprovalScreen } from "../auth/PendingApprovalScreen";
+import { RouteAccessLoading } from "../components/auth-route-guards";
 import { useAuth } from "../context/auth-context";
 
 export function PendingPage() {
-  const { user, accountStatus, logout } = useAuth();
-  const navigate = useNavigate();
+  const { user, accountStatus, isInitialising, isProfileLoading, logout } = useAuth();
 
-  useEffect(() => {
-    if (!user)                        { navigate("/login",    { replace: true }); return; }
-    if (accountStatus === "none")     { navigate("/register", { replace: true }); return; }
-    if (accountStatus === "rejected") { navigate("/rejected", { replace: true }); return; }
-    if (accountStatus === "approved") { navigate("/",         { replace: true }); return; }
-  }, [user, accountStatus, navigate]);
-
-  if (!user || accountStatus !== "pending") return <Navigate to="/login" replace />;
+  if (isInitialising || isProfileLoading) return <RouteAccessLoading />;
+  if (!user) return <Navigate to="/login" replace />;
+  if (accountStatus === "none") return <Navigate to="/register" replace />;
+  if (accountStatus === "rejected") return <Navigate to="/rejected" replace />;
+  if (accountStatus === "approved") return <Navigate to="/" replace />;
 
   return (
     <PendingApprovalScreen
-      completedUpTo="usn_submitted"
+      status={{
+        google_verified: "done",
+        usn_submitted: "done",
+        admin_approved: "in_progress",
+      }}
       onLogout={logout}
     />
   );

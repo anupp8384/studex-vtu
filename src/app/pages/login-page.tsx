@@ -1,20 +1,26 @@
-import { useEffect } from "react";
-import { useNavigate } from "react-router";
+import { Navigate } from "react-router";
 import { LoginScreen } from "../auth/LoginScreen";
 import { useAuth } from "../context/auth-context";
 
 export function LoginPage() {
-  const { user, accountStatus, signInWithGoogle, isLoading, loginError } = useAuth();
-  const navigate = useNavigate();
+  const {
+    user, accountStatus, signInWithGoogle, isInitialising, isProfileLoading, isLoading, loginError,
+  } = useAuth();
 
-  // Redirect already-authenticated users to the right place
-  useEffect(() => {
-    if (!user) return;
-    if (accountStatus === "none")     { navigate("/register", { replace: true }); return; }
-    if (accountStatus === "pending")  { navigate("/pending",  { replace: true }); return; }
-    if (accountStatus === "rejected") { navigate("/rejected", { replace: true }); return; }
-    if (accountStatus === "approved") { navigate("/",         { replace: true }); return; }
-  }, [user, accountStatus, navigate]);
+  if (isInitialising || isProfileLoading) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-[#FBFAF5]">
+        <p className="text-sm text-slate-600">Checking your account…</p>
+      </div>
+    );
+  }
+
+  if (user) {
+    if (accountStatus === "none") return <Navigate to="/register" replace />;
+    if (accountStatus === "pending") return <Navigate to="/pending" replace />;
+    if (accountStatus === "rejected") return <Navigate to="/rejected" replace />;
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <LoginScreen
